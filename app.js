@@ -5,7 +5,7 @@
 //   見つからなければ、メーカーのサイトに絞った Google 検索を開くボタンを出す
 // - スクリプトの URL と合言葉は、この機械のブラウザの中（localStorage）だけに覚える。GitHub には置かない
 'use strict';
-var VERSION = 'v1（2026-11-02）';
+var VERSION = 'v1.1（2026-11-02）';
 var MAX_SIDE = 2048;  // AI に送る写真の大きさ（長い辺）
 var jpeg = null;      // 送る写真（base64）
 var photoUrl = null;  // 画面に出している写真（data URL）

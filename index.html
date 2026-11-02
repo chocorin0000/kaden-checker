@@ -29,7 +29,8 @@
   .warn { color: var(--warn); }
   .row { display: flex; gap: 10px; margin-top: 12px; }
   .row > * { flex: 1; min-width: 0; }
-  .btn { display: block; box-sizing: border-box; width: 100%; min-height: 50px; padding: 12px 8px; border: 0; border-radius: 16px;
+  /* 「写真を撮る」「写真を選ぶ」は label なので、button と同じように字を上下の真ん中に（flex で中央寄せ） */
+  .btn { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 50px; padding: 12px 8px; border: 0; border-radius: 16px;
     background: linear-gradient(135deg, #3A4757, #2C3744); color: #fff; font-size: 17px; font-weight: bold; text-align: center;
     text-decoration: none; -webkit-appearance: none; cursor: pointer; font-family: inherit; }
   .btn:disabled { opacity: 0.5; }
@@ -38,7 +39,7 @@
   .btn.ai { background: linear-gradient(135deg, #B07CFF, #7B5CFF); }
   .btn.manual { min-height: 56px; background: linear-gradient(135deg, #5CE08A, #1FA67A); }
   .btn.small { min-height: 0; padding: 8px 14px; font-size: 14px; border-radius: 12px; width: auto; }
-  .btn.doc { text-align: left; padding: 12px 14px; font-weight: normal; margin-top: 8px; }
+  .btn.doc { justify-content: flex-start; text-align: left; padding: 12px 14px; font-weight: normal; margin-top: 8px; }
   input[type=file] { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
   input[type=text], input[type=number] { box-sizing: border-box; width: 100%; padding: 10px; font-size: 20px;
     border: 1px solid #3A4552; border-radius: 10px; background: var(--panel); color: var(--text); -webkit-appearance: none; font-family: inherit; }
