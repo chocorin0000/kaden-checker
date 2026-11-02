@@ -3,14 +3,19 @@
 // - 「AI で調べる」: スクリプト（Google Apps Script、Code.gs）に写真と品番を送り、Gemini が品番を読んで価格.com から発売日を探す
 // - 「取扱説明書を見る」: スクリプトがメーカーのサイトから PDF を探す（パナソニック・シャープ・日立・東芝・ソニー・象印）。
 //   見つからなければ、メーカーのサイトに絞った Google 検索を開くボタンを出す
+// - 写真の上に、AI が読んだ文字の枠（緑 = 品番、橙 = ほかの文字）。枠をタップすると、その文字を品番にする（v1.2）
+// - 撮った写真・取扱説明書の PDF は、共有の画面（iPhone なら「画像を保存」「ファイルに保存」）で保存できる（v1.2）
 // - スクリプトの URL と合言葉は、この機械のブラウザの中（localStorage）だけに覚える。GitHub には置かない
 'use strict';
-var VERSION = 'v1.1（2026-11-02）';
+var VERSION = 'v1.2（2026-11-02）';
 var MAX_SIDE = 2048;  // AI に送る写真の大きさ（長い辺）
 var jpeg = null;      // 送る写真（base64）
 var photoUrl = null;  // 画面に出している写真（data URL）
 var lastMaker = '';   // AI が読んだメーカー（取扱説明書を探すときに使う）
 var busy = false, manualBusy = false;
+var camFile = null;   // カメラで撮った写真（元のまま。保存用）
+var tboxes = [];      // AI が読んだ文字の枠 {text, role, box: [左, 上, 右, 下]（0〜1）}
+var tsel = -1;        // 緑の枠（品番に使っている文字）
 
 function $(id) { return document.getElementById(id); }
 function load(k) { try { return localStorage.getItem('kaden.' + k) || ''; } catch (e) { return ''; } }
@@ -74,6 +79,10 @@ function onFile(input) {
   var f = input.files && input.files[0];
   input.value = '';
   if (!f) return;
+  // カメラで撮った写真は、iPhone の写真アプリには入らないので、保存のボタンを出す
+  camFile = input.id === 'cam' ? f : null;
+  $('saveRow').className = camFile ? 'row' : 'row hidden';
+  $('savePhoto').textContent = '撮った写真を保存（写真アプリへ）';
   setStatus('写真を読み込んでいます…', true);
   var url = URL.createObjectURL(f);
   var img = new Image();
@@ -106,7 +115,99 @@ function setPhoto(dataUrl) {
   p.className = '';
   $('view').querySelector('.empty').className = 'empty hidden';
   $('rotRow').className = 'row';
+  setBoxes([], '');  // 枠は、この写真を AI が読んだあとに出す
 }
+
+// ---------------------------------------------------------------
+// 文字の枠
+// ---------------------------------------------------------------
+
+function normModel(s) { return String(s || '').toUpperCase().replace(/[\s　]/g, '').replace(/[‐－―−ー]/g, '-'); }
+
+function setBoxes(texts, model) {
+  tboxes = texts || [];
+  tsel = -1;
+  var m = normModel(model);
+  for (var i = 0; i < tboxes.length && tsel < 0; i++) if (m && normModel(tboxes[i].text) === m) tsel = i;
+  for (var j = 0; j < tboxes.length && tsel < 0; j++) if (m && normModel(tboxes[j].text).indexOf(m) >= 0) tsel = j;
+  for (var k = 0; k < tboxes.length && tsel < 0; k++) if (tboxes[k].role === 'model') tsel = k;
+  var h = '';
+  for (var n = 0; n < tboxes.length; n++) h += '<div class="tbox' + (n === tsel ? ' sel' : '') + '"></div>';
+  $('boxes').innerHTML = h;
+  drawBoxes();
+}
+
+function drawBoxes() {
+  var els = $('boxes').children, w = V.iw * V.k, h = V.ih * V.k;
+  for (var i = 0; i < els.length && i < tboxes.length; i++) {
+    var b = tboxes[i].box, s = els[i].style;
+    s.left = (V.x + b[0] * w - 3) + 'px';
+    s.top = (V.y + b[1] * h - 3) + 'px';
+    s.width = ((b[2] - b[0]) * w + 6) + 'px';
+    s.height = ((b[3] - b[1]) * h + 6) + 'px';
+    els[i].className = 'tbox' + (i === tsel ? ' sel' : '');
+  }
+}
+
+// タップした場所の枠（指で押しやすいように少し広め。重なっていたら小さいほう）
+function boxAt(p) {
+  var w = V.iw * V.k, h = V.ih * V.k, best = -1, area = Infinity;
+  for (var i = 0; i < tboxes.length; i++) {
+    var b = tboxes[i].box;
+    var l = V.x + b[0] * w - 10, t = V.y + b[1] * h - 10, r = V.x + b[2] * w + 10, d = V.y + b[3] * h + 10;
+    var a = (r - l) * (d - t);
+    if (p.x >= l && p.x <= r && p.y >= t && p.y <= d && a < area) { best = i; area = a; }
+  }
+  return best;
+}
+
+function pickBox(i) {
+  tsel = i;
+  drawBoxes();
+  var t = normModel(tboxes[i].text);
+  $('model').value = t;
+  setStatus('「' + t + '」を品番にしました。「AI で調べる」か「取扱説明書を見る」を押してください');
+}
+
+// ---------------------------------------------------------------
+// 保存（共有の画面を出す。iPhone: 写真は「画像を保存」、PDF は「ファイルに保存」）
+// ---------------------------------------------------------------
+
+function stamp() {
+  var d = new Date(), z = function(n) { return ('0' + n).slice(-2); };
+  return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '_' + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds());
+}
+
+// 共有の画面で保存する。使えないブラウザ（パソコンなど）はダウンロード。
+// 共有の画面は「ボタンを押した直後」にしか出せないので、出せなかったら false を返す（もう一度押してもらう）
+function shareFile(file) {
+  if (navigator.canShare && navigator.canShare({files: [file]})) {
+    return navigator.share({files: [file]}).then(function() { return true; }, function(e) {
+      if (e && e.name === 'AbortError') return true;      // 自分でやめた
+      // NotAllowedError: 押してから時間がたった / InvalidStateError: 前の保存の画面がまだ開いている
+      if (e && (e.name === 'NotAllowedError' || e.name === 'InvalidStateError')) return false;
+      throw e;
+    });
+  }
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+  return Promise.resolve(true);
+}
+
+$('savePhoto').onclick = function() {
+  if (!camFile) return;
+  var ext = ((camFile.type || 'image/jpeg').split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+  var name = '家電_' + stamp() + '.' + ext;
+  var file = new File([camFile], name, {type: camFile.type || 'image/jpeg'});
+  shareFile(file).then(function(ok) {
+    if (ok) $('savePhoto').textContent = '撮った写真を保存（もう一度保存するときも、ここ）';
+    else alert('保存の画面を出せませんでした。もう一度「撮った写真を保存」を押してください');
+  }).catch(function(e) { alert('保存できませんでした: ' + (e && e.message || e)); });
+};
 
 // 写真を 90 度回す（横向きに撮った写真など）。AI に送る写真も回したものになる
 function rotate(deg) {
@@ -163,6 +264,7 @@ function applyView() {
   var tip = $('tip');
   tip.textContent = zoomed ? '指で動かせます　ダブルタップで元に戻す' : '2 本の指で広げると大きくなります';
   tip.className = photoUrl ? '' : 'hidden';
+  drawBoxes();
 }
 
 function zoomAt(k, cx, cy) {
@@ -221,6 +323,9 @@ function up(e) {
   var left = Object.keys(pts).length;
   if (left < 2) pinch = null;
   if (left === 0 && e.type === 'pointerup' && !moved) {
+    // 文字の枠をタップ: その文字を品番に
+    var bi = boxAt(p);
+    if (bi >= 0 && bi !== tsel) pickBox(bi);
     // ダブルタップ: 3 倍に大きく / 元に戻す
     var now = Date.now();
     if (now - lastTap < 350 && Math.hypot(p.x - lastTapX, p.y - lastTapY) < 40) {
@@ -283,6 +388,7 @@ function show(r, ms) {
   setStatus('調べ終わりました（' + (ms / 1000).toFixed(1) + ' 秒）');
   var look = r.look, h = '';
   if (look && look.maker) lastMaker = look.maker;
+  if (look && look.texts) setBoxes(look.texts, r.model || (look.models && look.models[0]) || '');
   if (look && (look.maker || look.kind)) {
     h += '<div class="label" style="margin-top:0">写真から分かったこと</div><div class="big">'
        + esc([look.maker, look.series, look.kind].join(' ').replace(/\s+/g, ' ')) + '</div>';
@@ -384,8 +490,10 @@ function showManual(r, m) {
     }
     if (f.note) h += '<div class="sub warn" style="margin-top:6px">' + esc(f.note) + '</div>';
     for (var i = 0; i < f.docs.length; i++) {
-      h += '<a class="btn doc" href="' + esc(f.docs[i].url) + '" target="_blank" rel="noopener">' + esc(f.docs[i].title) + '</a>';
+      h += '<div class="docrow"><a class="btn doc" href="' + esc(f.docs[i].view || f.docs[i].url) + '" target="_blank" rel="noopener">'
+         + esc(f.docs[i].title) + '</a><button class="btn save" data-i="' + i + '">保存</button></div>';
     }
+    h += '<div class="sub" style="margin-top:8px">「保存」を押すと、保存の画面が出ます（iPhone は「ファイルに保存」など）</div>';
   } else {
     var who = r.maker ? r.maker + ' のサイト' : 'メーカーのサイト';
     h += '<div class="warn">' + esc(r.direct === false ? r.maker + ' は、まだ直接たどれません。インターネットで探してください'
@@ -395,6 +503,48 @@ function showManual(r, m) {
   }
   box.innerHTML = h;
   box.className = 'result';
+  if (f) {
+    var btns = box.querySelectorAll('button.save');
+    for (var k = 0; k < btns.length; k++) btns[k].onclick = function() { savePdf(f, f.docs[+this.getAttribute('data-i')], this); };
+  }
+}
+
+// 取扱説明書の PDF を保存する。ページからはメーカーのサイトのファイルを直接読めないので、スクリプトが 4MB ずつ取ってくる
+function savePdf(f, doc, btn) {
+  if (btn._file) { // 取り終わっている: 押した今なら共有の画面を出せる
+    shareFile(btn._file).catch(function(e) { alert('保存できませんでした: ' + (e && e.message || e)); });
+    return;
+  }
+  if (btn._busy) return;
+  btn._busy = true;
+  var parts = [], start = 0, total = 1;
+  btn.textContent = '0%';
+  function next() {
+    return call({action: 'pdf', url: doc.url, start: start, toshiba: doc.toshiba || null}).then(function(r) {
+      var bin = atob(r.b64), u = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      parts.push(u);
+      total = r.total || (start + u.length);
+      start += u.length;
+      btn.textContent = Math.min(100, Math.round(start * 100 / total)) + '%';
+      if (start < total && u.length > 0) return next();
+    });
+  }
+  next().then(function() {
+    var name = (f.maker + '_' + f.sku + '_' + doc.title).replace(/[\\\/:*?"<>|\s]+/g, '_').substring(0, 80) + '.pdf';
+    btn._file = new File(parts, name, {type: 'application/pdf'});
+    btn.textContent = '保存する';
+    btn.className = 'btn save ready';
+    btn._busy = false;
+    // 取り終わったらすぐ保存の画面を出してみる（押してから時間がたっていると出せないので、そのときは緑の「保存する」を押してもらう）
+    shareFile(btn._file).then(function(ok) {
+      if (!ok) alert('PDF を取りました。緑の「保存する」を押すと、保存の画面が出ます');
+    }, function(e) { alert('保存できませんでした: ' + (e && e.message || e)); });
+  }, function(e) {
+    btn._busy = false;
+    btn.textContent = '保存';
+    alert((e && e.message || e) + '\n\nこのときは「' + doc.title + '」を押して開いてから、共有のボタン →「ファイルに保存」で保存してください。');
+  });
 }
 
 // ---------------------------------------------------------------

@@ -40,6 +40,14 @@
   .btn.manual { min-height: 56px; background: linear-gradient(135deg, #5CE08A, #1FA67A); }
   .btn.small { min-height: 0; padding: 8px 14px; font-size: 14px; border-radius: 12px; width: auto; }
   .btn.doc { justify-content: flex-start; text-align: left; padding: 12px 14px; font-weight: normal; margin-top: 8px; }
+  .docrow { display: flex; gap: 8px; margin-top: 8px; }
+  .docrow .btn.doc { flex: 1; min-width: 0; margin-top: 0; }
+  .btn.save { flex: none; width: auto; min-width: 84px; padding: 8px 10px; font-size: 15px; background: linear-gradient(135deg, #3CC8FF, #3A7BD5); }
+  .btn.save.ready { background: linear-gradient(135deg, #5CE08A, #1FA67A); }
+  /* 写真の上の、文字の枠（緑 = 品番に使っている文字、橙 = ほかの文字。タップするとその文字を品番に） */
+  #boxes { position: absolute; left: 0; top: 0; right: 0; bottom: 0; pointer-events: none; }
+  .tbox { position: absolute; box-sizing: border-box; border: 2px solid rgba(255, 194, 74, 0.9); border-radius: 4px; }
+  .tbox.sel { border: 3px solid #5CE08A; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
   input[type=file] { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
   input[type=text], input[type=number] { box-sizing: border-box; width: 100%; padding: 10px; font-size: 20px;
     border: 1px solid #3A4552; border-radius: 10px; background: var(--panel); color: var(--text); -webkit-appearance: none; font-family: inherit; }
@@ -91,11 +99,12 @@
   <input id="cam" type="file" accept="image/*" capture="environment">
   <input id="pick" type="file" accept="image/*">
 
-  <div id="view"><div class="empty">ここに写真が出ます</div><img id="photo" class="hidden" alt=""><div id="tip" class="hidden"></div></div>
+  <div id="view"><div class="empty">ここに写真が出ます</div><img id="photo" class="hidden" alt=""><div id="boxes"></div><div id="tip" class="hidden"></div></div>
   <div id="rotRow" class="row hidden">
     <button class="btn" id="rotL">↺ 左に回す</button>
     <button class="btn" id="rotR">↻ 右に回す</button>
   </div>
+  <div id="saveRow" class="row hidden"><button class="btn" id="savePhoto">撮った写真を保存（写真アプリへ）</button></div>
   <div id="status" class="sub"></div>
 
   <div class="label">品番（分かっていれば入れてください。写真なしでも調べられます）</div>

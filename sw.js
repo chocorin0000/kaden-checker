@@ -3,7 +3,7 @@
 // - つながらないとき、またはサーバーが「ない」「エラー」と答えたとき（404・500 など）は、覚えておいた版で動く
 //   （サーバーのファイルが消えても、それまでの版で使い続けられる）
 // - 同じ chocorin0000.github.io に「超！手書き」もあるので、消すのは自分（kaden-）の覚えだけ
-const CACHE = 'kaden-v2';
+const CACHE = 'kaden-v3';
 const FILES = ['./', 'index.html', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 let state = { type: 'kaden-status', state: 'ok' };
 
