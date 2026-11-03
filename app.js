@@ -7,7 +7,7 @@
 // - 撮った写真・取扱説明書の PDF は、共有の画面（iPhone なら「画像を保存」「ファイルに保存」）で保存できる（v1.2）
 // - スクリプトの URL と合言葉は、この機械のブラウザの中（localStorage）だけに覚える。GitHub には置かない
 'use strict';
-var VERSION = 'v1.2（2026-11-02）';
+var VERSION = 'v1.3（2026-11-03）';
 var MAX_SIDE = 2048;  // AI に送る写真の大きさ（長い辺）
 var jpeg = null;      // 送る写真（base64）
 var photoUrl = null;  // 画面に出している写真（data URL）
